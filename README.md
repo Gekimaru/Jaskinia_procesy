@@ -1,3 +1,6 @@
+# Github 
+github.com/Gekimaru/Jaskinia_procesy/
+
 # Temat 13 – Jaskinia.
 Do jaskini w godzinach od T_p do T_k organizowane są wycieczki dwiema trasami. Na każdą z tras
 mogą wchodzić grupy zwiedzających o liczebności N1 i N2. Wejście i wyjście z jaskini odbywa się
