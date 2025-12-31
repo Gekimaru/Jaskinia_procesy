@@ -1,0 +1,7 @@
+/home/gekimaru/projekt/Jaskinia_procesy/build/CMakeFiles/main.dir
+/home/gekimaru/projekt/Jaskinia_procesy/build/CMakeFiles/kasjer.dir
+/home/gekimaru/projekt/Jaskinia_procesy/build/CMakeFiles/zwiedzajacy.dir
+/home/gekimaru/projekt/Jaskinia_procesy/build/CMakeFiles/przewodnik.dir
+/home/gekimaru/projekt/Jaskinia_procesy/build/CMakeFiles/straznik.dir
+/home/gekimaru/projekt/Jaskinia_procesy/build/CMakeFiles/edit_cache.dir
+/home/gekimaru/projekt/Jaskinia_procesy/build/CMakeFiles/rebuild_cache.dir
