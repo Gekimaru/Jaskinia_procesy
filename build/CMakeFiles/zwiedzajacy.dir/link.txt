@@ -1,1 +1,0 @@
-/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/zwiedzajacy.dir/link.d CMakeFiles/zwiedzajacy.dir/zwiedzajacy.cpp.o -o zwiedzajacy

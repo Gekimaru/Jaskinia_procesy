@@ -1,78 +1,60 @@
+#pragma once
 #include <iostream>
-#include <fstream>
-#include <sys/msg.h>
+#include <sys/ipc.h>
 #include <sys/shm.h>
-#include <unistd.h>
-#include "common.h"
+#include <thread>
+#include <chrono>
+#include "shared_defs.h"
+#include "loggerSender.h"
 
+LoggerSender logger;
+
+
+
+#include <fstream>
 using namespace std;
 
-int main() {
-    // 1. Generowanie tych samych kluczy co w main i zwiedzajacy
-    key_t msg_key = ftok(FTOK_PATH, PROJ_ID_MSG);
-    key_t shm_key = ftok(FTOK_PATH, PROJ_ID_SHM);
+int main(int argc, char** argv) {
+	int shmId = shmget(SHM_KEY, sizeof(SharedTimeData), 0666);
+	if (shmId < 0) { perror("kasjer shmget"); return 1; }
 
-    // 2. Podpięcie do istniejących zasobów
-    int msgid = msgget(msg_key, 0666);
-    int shmid = shmget(shm_key, sizeof(CaveStatus), 0666);
+	auto* shmPtr = reinterpret_cast<SharedTimeData*>(shmat(shmId, nullptr, 0));
+	if (shmPtr == reinterpret_cast<void*>(-1)) { perror("kasjer shmat"); return 1; }
 
-    if (msgid == -1 || shmid == -1) {
-        cerr << "[KASJER] Błąd: Nie można uzyskać dostępu do IPC. Czy MAIN działa?" << endl;
-        return 1;
-    }
+	// czekamy na start zegara
+	while (!shmPtr->clockStarted) std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
-    CaveStatus* status = (CaveStatus*)shmat(shmid, NULL, 0);
-    
-    // Otwarcie pliku raportu
-    ofstream report("raport_jaskinia.txt", ios::app);
-    if (!report.is_open()) {
-        cerr << "[KASJER] Błąd otwarcia pliku raportu!" << endl;
-        return 1;
-    }
+	int counter = 0;
+	logger.log("[KASJER] Kasa otwarta. Obsługa zgodnie z nowym regulaminem wiekowym.");
+	while (shmPtr->running) {
+		int msgid = msgget(MSG_KEY, 0666);
+		ofstream report("raport_jaskinia.txt", ios::trunc);
 
-    cout << "[KASJER] Kasa otwarta. Czekam na klientów..." << endl;
 
-    msg_ticket_req msg;
+		msg_ticket_req msg;
+		while (msgrcv(msgid, &msg, sizeof(msg), 1, 0) != -1) {
+			double price = (msg.is_repeat) ? 20.0 : 40.0; // Cena za proces
+			int route = msg.pref_route;
+			string type = (msg.adult_age >= 18) ? "Dorosły" : "Młodzież (samodzielny)";
 
-    // 3. Pętla pracy Kasjera
-    // Pracujemy dopóki kasa jest otwarta LUB w kolejce są jeszcze wiadomości do odebrania
-    while (true) {
-        // Sprawdzamy czy są wiadomości bez blokowania na stałe (IPC_NOWAIT)
-        // Dzięki temu możemy co chwilę sprawdzać stan status->ticket_office_open
-        if (msgrcv(msgid, &msg, sizeof(msg) - sizeof(long), 1, IPC_NOWAIT) != -1) {
-            
-            string route = (msg.pref_route == 1) ? "Trasa Krótka" : "Trasa Długa";
-            int price = (msg.pref_route == 1) ? 30 : 50;
-            int total_people = 1 + msg.num_children;
+			// Seniorzy (procesy 75+) -> Trasa 2
+			if (msg.adult_age > 75) route = 2;
 
-            // Logowanie do pliku
-            report << "ID: " << msg.visitor_id 
-                   << " | Wiek: " << msg.age 
-                   << " | Grupa: " << total_people
-                   << " | " << route 
-                   << " | Koszt: " << price * total_people << " PLN" << endl;
-            
-            report.flush(); // Natychmiastowy zapis na dysk
+			// Obsługa wątków-dzieci (tylko u dorosłych)
+			for (int i = 0; i < msg.num_children; ++i) {
+				// Skoro to dziecko (wątek), to ma < 8 lat -> wymusza Trasę 2
+				route = 2;
 
-            cout << "[KASJER] Obsłużono ID: " << msg.visitor_id 
-                 << " (Grupa: " << total_people << ")" << endl;
-        } else {
-            // Jeśli nie ma wiadomości, sprawdźmy czy kasa nie została zamknięta
-            if (!status->ticket_office_open) {
-                // Dodatkowe sprawdzenie, czy w międzyczasie coś nie wpadło
-                if (msgrcv(msgid, &msg, sizeof(msg) - sizeof(long), 1, IPC_NOWAIT) == -1) {
-                    break; // Kolejka pusta i kasa zamknięta -> kończymy
-                }
-            }
-            // Mała pauza, żeby nie zużywać 100% CPU w pętli non-blocking
-            usleep(50000); 
-        }
-    }
+				if (msg.children_ages[i] >= 3) {
+					price += (msg.is_repeat) ? 20.0 : 40.0; 
+				}
+			}
+			logger.log("[KASJER] ID " + std::to_string(msg.visitor_id) + " (" + type + ", " + std::to_string(msg.adult_age) + " lat). "
+           		+ "Dzieci: " + std::to_string(msg.num_children) + " -> Trasa " + std::to_string(route));
 
-    cout << "[KASJER] Kasa zamknięta. Raport zapisany." << endl;
-    
-    report.close();
-    shmdt(status);
+		}
+	}
 
-    return 0;
+	shmdt(shmPtr);
+	return 0;
 }
