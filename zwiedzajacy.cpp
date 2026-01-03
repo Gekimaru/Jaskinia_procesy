@@ -1,81 +1,93 @@
-#pragma once
 #include <iostream>
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <thread>
 #include <chrono>
 #include <cstdlib>
-#include "shared_defs.h"
 #include <pthread.h>
 #include <unistd.h>
-#include <string.h>
+#include "shared_defs.h"
 #include "loggerSender.h"
+#include "messageQueue.h"
 
 LoggerSender logger;
 
-
-
-void* child_thread(void* arg) { return NULL; }
+void* child_thread(void* arg) { return nullptr; }
 
 void visitor_logic(int id) {
-	srand(time(NULL) ^ (getpid() << 16));
-	int msgid = msgget(MSG_KEY, 0666);
+    srand(time(nullptr) ^ (getpid() << 16));
 
-	msg_ticket_req req;
-	req.mtype = 1;
-	req.visitor_id = id;
+    // Connect to main message queue
+    MessageQueue mq("main_file", 1,false);
+    if (mq.id() < 0) {
+        perror("zwiedzajacy: failed to connect to main queue");
+        _exit(1);
+    }
 
-	// Losujemy wiek procesu (od 8 do 90 lat)
-	req.adult_age = rand() % 83 + 8; 
-	req.pref_route = rand() % 2 + 1;
-	req.is_repeat = (rand() % 100 < 10);
+    msg_ticket_req req{};
+    req.mtype = 1;
+    req.visitor_id = id;
 
-	// Logika dzieci: tylko jeśli proces ma przynajmniej 18 lat
-	if (req.adult_age >= 18) {
-		req.num_children = 0;
-		if(rand()%10<2){
-			req.num_children = rand() % (MAX_CHILDREN + 1);
-		}
-	} else {
-		req.num_children = 0; // Osoba 8-17 lat nie może mieć dzieci
-	}
+    // Random age 8-90
+    req.adult_age = rand() % 83 + 8;
+    req.pref_route = (rand() % 10 < 3) ? 2 : 1;
+    if (req.adult_age > 75) req.pref_route = 2;
+    req.is_repeat = (rand() % 100 < 10);
 
-	pthread_t th[MAX_CHILDREN];
-	for (int i = 0; i < req.num_children; i++) {
-		// Dziecko (wątek) ma zawsze 1-7 lat
-		req.children_ages[i] = rand() % 7 + 1; 
-		pthread_create(&th[i], NULL, child_thread, NULL);
-	}
+    // Children logic: only for adults >= 18
+    if (req.adult_age >= 18) {
+        req.num_children = (rand() % 10 < 3) ? rand() % (MAX_CHILDREN + 1) : 0;
+    } else {
+        req.num_children = 0;
+    }
 
-	msgsnd(msgid, &req, sizeof(req) - sizeof(long), 0);
+    // Spawn threads for children
+    pthread_t th[MAX_CHILDREN];
+    for (int i = 0; i < req.num_children; ++i) {
+        req.children_ages[i] = rand() % 7 + 1;
+        pthread_create(&th[i], nullptr, child_thread, nullptr);
+    }
 
-	for (int i = 0; i < req.num_children; i++) {
-		pthread_join(th[i], NULL);
-	}
-	exit(0);
+    // Send visitor struct to the queue
+    if (mq.send(req.mtype, reinterpret_cast<const char*>(&req), sizeof(req)) == -1) {
+        perror("zwiedzajacy: send failed");
+        exit(1);
+    }
+
+    // Join child threads
+    for (int i = 0; i < req.num_children; ++i) {
+        pthread_join(th[i], nullptr);
+    }
+
+    logger.log("Zwiedzajacy o pidzie " + std::to_string(getpid()) + " sie skonczyl");
+    exit(0);
 }
 
-int main(int argc,char** argv) {
-	if(std::string(argv[0]) != "origin"){
-		visitor_logic(getpid());
-		exit(0);
-	}
-	int shmId = shmget(SHM_KEY, sizeof(SharedTimeData), 0666);
-	if (shmId < 0) { perror("zwiedzajacy shmget"); return 1; }
+int main(int argc, char** argv) { 
+    
+    // If this is a child visitor process, just run visitor_logic
+    if (argc > 0 && std::string(argv[0]) != "origin") {
+        visitor_logic(getpid());
+        return 0;
+    }
 
-	auto* shmPtr = reinterpret_cast<SharedTimeData*>(shmat(shmId, nullptr, 0));
-	if (shmPtr == reinterpret_cast<void*>(-1)) { perror("zwiedzajacy shmat"); return 1; }
+    // Connect to shared memory
+    int shmId = shmget(SHM_KEY, sizeof(SharedTimeData), 0666);
+    if (shmId < 0) { perror("zwiedzajacy shmget"); return 1; }
 
-	// czekamy na start zegara
-	while (!shmPtr->clockStarted) std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    auto* shmPtr = reinterpret_cast<SharedTimeData*>(shmat(shmId, nullptr, 0));
+    if (shmPtr == reinterpret_cast<void*>(-1)) { perror("zwiedzajacy shmat"); return 1; }
 
-	int visitorId = 0;
-	while (shmPtr->running) {
-		if (fork() == 0) execl("./zwiedzajacy", "dziecko", nullptr);
+    // Wait for clock to start
+    while (!shmPtr->clockStarted) std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
-		usleep(300000);
-	}
+    // Spawn visitor processes while clock is running
+    while (shmPtr->running) {
+        if (fork() == 0) execl("./zwiedzajacy", "dziecko", nullptr);
+        usleep(300000);
+    }
+    logger.log("Generator zwiedzajacych sie skonczyl");
 
-	shmdt(shmPtr);
-	return 0;
+    shmdt(shmPtr);
+    return 0;
 }

@@ -4,6 +4,8 @@
 #include <sys/ipc.h>
 #include <sys/msg.h>
 #include <iostream>
+#include "loggerSender.h"
+
 
 
 #define QUEUE_PATH_TICKET "queue_ticket"
