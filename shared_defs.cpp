@@ -2,19 +2,15 @@
 #include <sys/ipc.h>
 #include <unistd.h>
 #include <string.h>
-#include "loggerSender.h"
-
+#include <cstdio>
 
 key_t getKeyFromPath(const char *path, int proj_id){
-	key_t temp = ftok(path,proj_id);
 
-	switch(temp)
-	{
-		case -1:
-            
-			break;
-		default:
-			break; 
-	}
-	return temp;
+    key_t key = ftok(path, proj_id);
+    if (key < 0) {
+        perror("ftok failed");
+        return -1;
+    }
+    return key;
 }
+

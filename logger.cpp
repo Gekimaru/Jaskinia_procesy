@@ -8,9 +8,9 @@
 #include <ctime>
 #include <cstring>
 #include <cerrno>
-
+#include "loggerSender.h"
 #define MAX_LOG_SIZE 512
-
+LoggerSender logger;
 struct log_msg {
     long mtype;
     char text[MAX_LOG_SIZE];
@@ -30,7 +30,7 @@ static bool write_all(int fd, const char* buf, size_t len) {
     while (written < len) {
         ssize_t w = write(fd, buf + written, len - written);
         if (w < 0) {
-            if (errno == EINTR) continue;   
+            //if (errno == EINTR) continue;   
             return false;                   
         }
         written += static_cast<size_t>(w);
@@ -85,7 +85,10 @@ int main() {
             break;
     }
 
-    close(fd);
+    if(close(fd) == -1){
+        perror("Couldn't close file");
+    }
+    logger.destroy();
     msgctl(msgid, IPC_RMID, nullptr);
     return 0;
 }

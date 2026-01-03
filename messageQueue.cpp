@@ -37,7 +37,8 @@ int MessageQueue::send(long type, const char* data, size_t size) {
     msg.mtype = type;
     memcpy(msg.mtext, data, size);
 
-    if (::msgsnd(id_, &msg, size, 0) < 0) {
+    if (msgsnd(id_, &msg, size, 0) < 0) {
+        
         perror("MessageQueue: msgsnd failed");
         return -1;
     }

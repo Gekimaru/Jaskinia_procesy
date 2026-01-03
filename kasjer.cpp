@@ -1,4 +1,3 @@
-#pragma once
 #include <iostream>
 #include <sys/ipc.h>
 #include <sys/shm.h>
@@ -14,6 +13,7 @@ using namespace std;
 
 int main(int argc, char** argv) {
     // podłączenie do shared memory
+    //
     int shmId = shmget(SHM_KEY, sizeof(SharedTimeData), 0666);
     if (shmId < 0) { perror("kasjer shmget"); return 1; }
 
@@ -26,7 +26,7 @@ int main(int argc, char** argv) {
     logger.log("[KASJER] Kasa otwarta. Obsługa zgodnie z nowym regulaminem wiekowym.");
 
     // tworzymy lokalny obiekt MessageQueue do odbioru
-    MessageQueue mq("main_file", 1);
+    MessageQueue mq("main_file", 1,false);
     if (mq.id() < 0) { perror("kasjer: blad inicjalizacji kolejki"); return 1; }
 
     msg_ticket_req msg;

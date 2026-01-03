@@ -23,18 +23,20 @@ pid_t zwiedzajacyPid = -1;
 pid_t loggerPid = -1;
 
 void handleSignal(int) {
+
+    logger.log("__LOGGER_STOP__");
     stopRequested = true;
     if (shmPtr) shmPtr->running = false;
 
-    if (kasjerPid > 0) kill(kasjerPid, SIGINT);
     if (zwiedzajacyPid > 0) kill(zwiedzajacyPid, SIGINT);
-    if (loggerPid > 0) kill(loggerPid, SIGINT);
+    if (kasjerPid > 0) kill(kasjerPid, SIGINT);
 
     if (shmPtr) shmdt(shmPtr);
     if (shmId >= 0) shmctl(shmId, IPC_RMID, nullptr);
     if (msgQueue) msgQueue->destroy();
-
-    logger.log("__LOGGER_STOP__");
+    
+    msgQueue->destroy();
+    delete msgQueue;
 }
 
 void clockThread(int Tp, int Tk) {
@@ -63,6 +65,12 @@ int main(int argc, char** argv) {
 
     signal(SIGINT, handleSignal);
 
+    int Tp = std::stoi(argv[1]);
+    int Tk = std::stoi(argv[2]);
+    if(Tp > Tk) {
+        std::cerr << "Niepoprawnie wprowadzony czas, poczatek nie moze byc po koncu!\n";
+        return 1;
+    }
     // Stwórz kolejkę główną procesów
     msgQueue = new MessageQueue("main_file", 1,true);
     if (msgQueue->id() < 0) {
@@ -70,8 +78,6 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    int Tp = std::stoi(argv[1]);
-    int Tk = std::stoi(argv[2]);
 
     // Stwórz shared memory
     shmId = shmget(SHM_KEY, sizeof(SharedTimeData), IPC_CREAT | 0666);
@@ -121,9 +127,10 @@ int main(int argc, char** argv) {
     if (zwiedzajacyPid > 0) waitpid(zwiedzajacyPid, nullptr, 0);
     logger.log("Zwiedzajacy sie skonczyli");
     if (shmPtr) shmdt(shmPtr);
-    logger.log("Usunalem pamiec dzielona");
     if (shmId >= 0) shmctl(shmId, IPC_RMID, nullptr);
+    logger.log("Usunalem pamiec dzielona");
     if (msgQueue) msgQueue->destroy();
+    logger.log("Usunalem kolejke do kasy");
 
     logger.log("__LOGGER_STOP__");
     return 0;

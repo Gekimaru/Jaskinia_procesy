@@ -7,7 +7,6 @@
 #include "loggerSender.h"
 
 
-
 #define QUEUE_PATH_TICKET "queue_ticket"
 #define QUEUE_PATH_KLADKI_ENTR "queue_kladki_entr"
 

@@ -59,6 +59,7 @@ void visitor_logic(int id) {
         pthread_join(th[i], nullptr);
     }
 
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
     logger.log("Zwiedzajacy o pidzie " + std::to_string(getpid()) + " sie skonczyl");
     exit(0);
 }
@@ -87,7 +88,7 @@ int main(int argc, char** argv) {
         usleep(300000);
     }
     logger.log("Generator zwiedzajacych sie skonczyl");
-
+    
     shmdt(shmPtr);
     return 0;
 }

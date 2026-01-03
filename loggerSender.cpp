@@ -7,7 +7,7 @@ LoggerSender::LoggerSender() : mq_("logger_file", 0)
     if (mq_.id() < 0) { perror("LoggerSender: failed to attach message queue"); } 
 }
 
-LoggerSender::LoggerSender(bool create) : mq_("logger_file", 0,true) 
+LoggerSender::LoggerSender(bool create) : mq_("logger_file", 0,create) 
 { 
     if (mq_.id() < 0) { perror("LoggerSender: failed to init message queue"); } 
 }
@@ -23,6 +23,7 @@ void LoggerSender::log(const std::string &text) {
 void LoggerSender::destroy() {
     if (mq_.id() >= 0) {
         mq_.destroy();
+        
     }
 }
 
